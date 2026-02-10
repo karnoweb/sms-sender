@@ -1,0 +1,56 @@
+{
+    "name": "karnoweb/sms-sender",
+    "description": "A fluent SMS manager for Laravel with multi-driver support and automatic failover.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "sms",
+        "failover",
+        "fluent",
+        "multi-driver"
+    ],
+    "authors": [
+        {
+            "name": "Karnoweb",
+            "homepage": "https://github.com/karnoweb"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/contracts": "^11.0|^12.0",
+        "illuminate/config": "^11.0|^12.0",
+        "illuminate/container": "^11.0|^12.0",
+        "illuminate/database": "^11.0|^12.0",
+        "illuminate/support": "^11.0|^12.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Karnoweb\\SmsSender\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Karnoweb\\SmsSender\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Karnoweb\\SmsSender\\SmsServiceProvider"
+            ],
+            "aliases": {
+                "Sms": "Karnoweb\\SmsSender\\Facades\\Sms"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
