@@ -15,6 +15,15 @@ abstract class TestCase extends BaseTestCase
             'database' => ':memory:',
             'prefix'   => '',
         ]);
+
+        $app['config']->set('sms.default', 'null');
+        $app['config']->set('sms.drivers.null', [
+            'class'       => \Karnoweb\SmsSender\Drivers\NullDriver::class,
+            'credentials' => [],
+        ]);
+        $app['config']->set('sms.failover', $app['config']->get('sms.failover', []));
+        $app['config']->set('sms.model', $app['config']->get('sms.model', \Karnoweb\SmsSender\Models\Sms::class));
+        $app['config']->set('sms.table', $app['config']->get('sms.table', 'sms_messages'));
     }
 
     protected function getPackageProviders($app): array

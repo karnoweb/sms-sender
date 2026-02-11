@@ -26,9 +26,17 @@ class UsageRecordingDriver implements SmsDriver
         static::$sent = [];
     }
 
-    public function send(string $phone, string $message): void
+    /**
+     * @param array<int, string> $recipients
+     * @return array{message_id: string}
+     */
+    public function send(array $recipients, string $message, ?string $from = null): array
     {
-        static::$sent[] = ['phone' => $phone, 'message' => $message];
+        foreach ($recipients as $phone) {
+            static::$sent[] = ['phone' => $phone, 'message' => $message];
+        }
+
+        return ['message_id' => 'usage-rec-' . uniqid()];
     }
 }
 

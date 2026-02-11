@@ -9,7 +9,11 @@ class FailingDriver implements SmsDriver
 {
     public function __construct(protected readonly array $config = []) {}
 
-    public function send(string $phone, string $message): void
+    /**
+     * @param array<int, string> $recipients
+     * @return array<string, mixed>
+     */
+    public function send(array $recipients, string $message, ?string $from = null): array
     {
         throw new DriverConnectionException('Simulated connection failure');
     }

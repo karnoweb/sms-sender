@@ -7,9 +7,6 @@ use Illuminate\Support\ServiceProvider;
 
 class SmsServiceProvider extends ServiceProvider
 {
-    /**
-     * ثبت سرویس‌ها در Container.
-     */
     public function register(): void
     {
         $this->mergeConfigFrom(
@@ -22,19 +19,15 @@ class SmsServiceProvider extends ServiceProvider
         });
     }
 
-    /**
-     * عملیات Boot پکیج.
-     */
     public function boot(): void
     {
+        $this->loadTranslationsFrom(__DIR__ . '/../lang', 'sms-sender');
+
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
         }
     }
 
-    /**
-     * تعریف فایل‌های قابل publish.
-     */
     private function registerPublishing(): void
     {
         $this->publishes([
@@ -44,5 +37,9 @@ class SmsServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../database/migrations' => database_path('migrations'),
         ], 'sms-migrations');
+
+        $this->publishes([
+            __DIR__ . '/../lang' => lang_path('vendor/sms-sender'),
+        ], 'sms-lang');
     }
 }

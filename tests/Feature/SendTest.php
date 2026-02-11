@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Karnoweb\SmsSender\Enums\SmsSendStatusEnum;
 use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
 use Karnoweb\SmsSender\Exceptions\InvalidDriverConfigurationException;
+use Karnoweb\SmsSender\Exceptions\InvalidPhoneNumberException;
 use Karnoweb\SmsSender\Facades\Sms;
 use Karnoweb\SmsSender\Models\Sms as SmsModel;
 use Karnoweb\SmsSender\Tests\TestCase;
@@ -21,15 +22,15 @@ class SendTest extends TestCase
 
     public function test_send_without_recipients_throws_exception(): void
     {
-        $this->expectException(InvalidDriverConfigurationException::class);
-        $this->expectExceptionMessage('No recipients');
+        $this->expectException(InvalidPhoneNumberException::class);
+        $this->expectExceptionMessage('empty');
         Sms::message('سلام')->send();
     }
 
     public function test_send_without_message_throws_exception(): void
     {
         $this->expectException(InvalidDriverConfigurationException::class);
-        $this->expectExceptionMessage('No message');
+        $this->expectExceptionMessage('No message or template provided');
         Sms::number('09120000000')->send();
     }
 
@@ -83,7 +84,7 @@ class SendTest extends TestCase
 
         $this->assertDatabaseHas('sms_messages', [
             'phone'    => '09120000000',
-            'message'  => 'کد ورود شما: 1234',
+            'message'  => 'Your login code: 1234',
             'template' => 'LOGIN_OTP',
             'status'   => SmsSendStatusEnum::SENT->value,
         ]);
@@ -127,11 +128,11 @@ class SendTest extends TestCase
     {
         try {
             Sms::message('تست')->send();
-        } catch (InvalidDriverConfigurationException) {
+        } catch (InvalidPhoneNumberException) {
         }
 
         $this->expectException(InvalidDriverConfigurationException::class);
-        $this->expectExceptionMessage('No recipients');
+        $this->expectExceptionMessage('No message or template provided');
         Sms::number('09120000000')->send();
     }
 

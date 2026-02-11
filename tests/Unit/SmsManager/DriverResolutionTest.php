@@ -4,6 +4,7 @@ namespace Karnoweb\SmsSender\Tests\Unit\SmsManager;
 
 use Karnoweb\SmsSender\Contracts\SmsDriver;
 use Karnoweb\SmsSender\Drivers\NullDriver;
+use Karnoweb\SmsSender\Exceptions\DriverNotFoundException;
 use Karnoweb\SmsSender\Exceptions\InvalidDriverConfigurationException;
 use Karnoweb\SmsSender\SmsManager;
 use Karnoweb\SmsSender\Tests\TestCase;
@@ -82,8 +83,8 @@ class DriverResolutionTest extends TestCase
 
     public function test_resolve_undefined_driver_throws_exception(): void
     {
-        $this->expectException(InvalidDriverConfigurationException::class);
-        $this->expectExceptionMessage('not defined');
+        $this->expectException(DriverNotFoundException::class);
+        $this->expectExceptionMessage('not found');
         $this->resolveDriverMethod->invoke($this->manager, 'nonexistent');
     }
 

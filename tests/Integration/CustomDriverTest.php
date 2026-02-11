@@ -37,14 +37,22 @@ class FakeKavenegarDriver implements SmsDriver, DeliveryReportFetcher
         static::$counter = 0;
     }
 
-    public function send(string $phone, string $message): void
+    /**
+     * @param array<int, string> $recipients
+     * @return array{message_id: string}
+     */
+    public function send(array $recipients, string $message, ?string $from = null): array
     {
         $msgId = 'kav_' . (++static::$counter);
-        static::$sent[] = [
-            'phone'               => $phone,
-            'message'             => $message,
-            'provider_message_id' => $msgId,
-        ];
+        foreach ($recipients as $phone) {
+            static::$sent[] = [
+                'phone'               => $phone,
+                'message'             => $message,
+                'provider_message_id' => $msgId,
+            ];
+        }
+
+        return ['message_id' => $msgId];
     }
 
     public function fetchDeliveryReport(string $providerMessageId): array
@@ -69,9 +77,17 @@ class FakeSimpleDriver implements SmsDriver
         static::$sent = [];
     }
 
-    public function send(string $phone, string $message): void
+    /**
+     * @param array<int, string> $recipients
+     * @return array{message_id: string}
+     */
+    public function send(array $recipients, string $message, ?string $from = null): array
     {
-        static::$sent[] = ['phone' => $phone, 'message' => $message];
+        foreach ($recipients as $phone) {
+            static::$sent[] = ['phone' => $phone, 'message' => $message];
+        }
+
+        return ['message_id' => 'simple-' . uniqid()];
     }
 }
 

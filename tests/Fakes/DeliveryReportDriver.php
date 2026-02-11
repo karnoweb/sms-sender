@@ -24,15 +24,23 @@ class DeliveryReportDriver implements SmsDriver, DeliveryReportFetcher
         static::$counter         = 0;
     }
 
-    public function send(string $phone, string $message): void
+    /**
+     * @param array<int, string> $recipients
+     * @return array{message_id: string}
+     */
+    public function send(array $recipients, string $message, ?string $from = null): array
     {
         $providerMessageId = 'msg_' . (++static::$counter);
 
-        static::$sent[] = [
-            'phone'               => $phone,
-            'message'             => $message,
-            'provider_message_id' => $providerMessageId,
-        ];
+        foreach ($recipients as $phone) {
+            static::$sent[] = [
+                'phone'               => $phone,
+                'message'             => $message,
+                'provider_message_id' => $providerMessageId,
+            ];
+        }
+
+        return ['message_id' => $providerMessageId];
     }
 
     public function fetchDeliveryReport(string $providerMessageId): array

@@ -5,8 +5,7 @@ namespace Karnoweb\SmsSender\Drivers;
 use Karnoweb\SmsSender\Contracts\SmsDriver;
 
 /**
- * درایور خالی (Null Object Pattern).
- * در محیط توسعه و تست هیچ پیامکی ارسال نمی‌شود.
+ * Null driver (Null Object Pattern). No SMS is sent in development or tests.
  */
 class NullDriver implements SmsDriver
 {
@@ -17,8 +16,12 @@ class NullDriver implements SmsDriver
         protected readonly array $config = [],
     ) {}
 
-    public function send(string $phone, string $message): void
+    /**
+     * @param array<int, string> $recipients
+     * @return array{message_id: string}
+     */
+    public function send(array $recipients, string $message, ?string $from = null): array
     {
-        // عمداً خالی — Null Object Pattern
+        return ['message_id' => 'null-' . uniqid()];
     }
 }

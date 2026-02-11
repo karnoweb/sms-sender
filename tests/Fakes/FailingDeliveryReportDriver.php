@@ -10,9 +10,13 @@ class FailingDeliveryReportDriver implements SmsDriver, DeliveryReportFetcher
 {
     public function __construct(protected readonly array $config = []) {}
 
-    public function send(string $phone, string $message): void
+    /**
+     * @param array<int, string> $recipients
+     * @return array{message_id: string}
+     */
+    public function send(array $recipients, string $message, ?string $from = null): array
     {
-        // ارسال موفق
+        return ['message_id' => 'failing-report-' . uniqid()];
     }
 
     public function fetchDeliveryReport(string $providerMessageId): array

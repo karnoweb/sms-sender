@@ -4,6 +4,7 @@ namespace Karnoweb\SmsSender\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Karnoweb\SmsSender\Enums\SmsSendStatusEnum;
+use Karnoweb\SmsSender\Exceptions\AllDriversFailedException;
 use Karnoweb\SmsSender\Exceptions\DriverConnectionException;
 use Karnoweb\SmsSender\Exceptions\DriverNotAvailableException;
 use Karnoweb\SmsSender\Exceptions\InvalidDriverConfigurationException;
@@ -72,10 +73,6 @@ class FailoverTest extends TestCase
 
         $this->assertCount(1, RecordingDriver::$sent);
         $this->assertDatabaseHas('sms_messages', [
-            'driver' => 'failing',
-            'status' => SmsSendStatusEnum::FAILED->value,
-        ]);
-        $this->assertDatabaseHas('sms_messages', [
             'driver' => 'recording',
             'status' => SmsSendStatusEnum::SENT->value,
         ]);
@@ -96,8 +93,8 @@ class FailoverTest extends TestCase
             ],
         ]);
 
-        $this->expectException(DriverNotAvailableException::class);
-        $this->expectExceptionMessage('No SMS drivers are available');
+        $this->expectException(AllDriversFailedException::class);
+        $this->expectExceptionMessage('All drivers failed');
         Sms::message('تست شکست')->number('09120000000')->send();
     }
 
@@ -114,9 +111,11 @@ class FailoverTest extends TestCase
 
         try {
             Sms::message('تست')->number('09120000000')->send();
-            $this->fail('Expected DriverNotAvailableException');
-        } catch (DriverNotAvailableException $e) {
-            $this->assertInstanceOf(DriverConnectionException::class, $e->getPrevious());
+            $this->fail('Expected AllDriversFailedException');
+        } catch (AllDriversFailedException $e) {
+            $errors = $e->getDriverErrors();
+            $this->assertNotEmpty($errors);
+            $this->assertInstanceOf(DriverConnectionException::class, $errors['failing'] ?? null);
         }
     }
 
@@ -124,23 +123,19 @@ class FailoverTest extends TestCase
     {
         config([
             'sms.default'  => 'buggy',
-            'sms.failover' => ['recording'],
+            'sms.failover' => [],
             'sms.drivers.buggy' => [
                 'class'       => BuggyDriver::class,
                 'credentials' => [],
             ],
-            'sms.drivers.recording' => [
-                'class'       => RecordingDriver::class,
-                'credentials' => [],
-            ],
         ]);
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(AllDriversFailedException::class);
         $this->expectExceptionMessage('Unexpected bug');
         Sms::message('تست باگ')->number('09120000000')->send();
     }
 
-    public function test_unexpected_exception_does_not_trigger_second_driver(): void
+    public function test_unexpected_exception_triggers_failover_to_second_driver(): void
     {
         config([
             'sms.default'  => 'buggy',
@@ -155,12 +150,9 @@ class FailoverTest extends TestCase
             ],
         ]);
 
-        try {
-            Sms::message('تست')->number('09120000000')->send();
-        } catch (\RuntimeException) {
-        }
+        Sms::message('تست')->number('09120000000')->send();
 
-        $this->assertEmpty(RecordingDriver::$sent);
+        $this->assertCount(1, RecordingDriver::$sent);
     }
 
     public function test_invalid_config_triggers_failover(): void
@@ -213,7 +205,7 @@ class FailoverTest extends TestCase
 
         try {
             Sms::message('تست')->number('09120000000')->send();
-        } catch (DriverNotAvailableException) {
+        } catch (AllDriversFailedException) {
         }
 
         $this->expectException(InvalidDriverConfigurationException::class);

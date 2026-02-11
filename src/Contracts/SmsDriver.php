@@ -3,20 +3,20 @@
 namespace Karnoweb\SmsSender\Contracts;
 
 /**
- * قرارداد اصلی درایورهای SMS.
+ * Main SMS driver contract. Each driver must implement this interface.
+ * Constructor must accept array $config.
  *
- * هر درایور ارسال پیامک باید این اینترفیس را پیاده‌سازی کند.
- * سازنده باید یک پارامتر array $config بپذیرد.
- *
- * @throws \Karnoweb\SmsSender\Exceptions\DriverConnectionException در صورت خطای ارتباطی
+ * @throws \Karnoweb\SmsSender\Exceptions\DriverConnectionException on connection error
  */
 interface SmsDriver
 {
     /**
-     * ارسال یک پیامک به شماره‌ی مشخص.
+     * Send SMS to one or more recipients.
      *
-     * @param string $phone   شماره‌ی موبایل گیرنده
-     * @param string $message متن نهایی پیامک
+     * @param array<int, string> $recipients Recipient phone numbers
+     * @param string $message Final message text
+     * @param string|null $from Sender number (optional, driver-dependent)
+     * @return array<string, mixed> Raw API response (at least message_id on success)
      */
-    public function send(string $phone, string $message): void;
+    public function send(array $recipients, string $message, ?string $from = null): array;
 }

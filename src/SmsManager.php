@@ -8,14 +8,24 @@ use Karnoweb\SmsSender\Contracts\SmsDriver;
 use Karnoweb\SmsSender\Contracts\SmsUsageHandler;
 use Karnoweb\SmsSender\Enums\SmsSendStatusEnum;
 use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
+use Karnoweb\SmsSender\Events\SmsFailed;
+use Karnoweb\SmsSender\Events\SmsSent;
+use Karnoweb\SmsSender\Events\SmsSending;
+use Karnoweb\SmsSender\Exceptions\AllDriversFailedException;
 use Karnoweb\SmsSender\Exceptions\DriverConnectionException;
 use Karnoweb\SmsSender\Exceptions\DriverNotAvailableException;
+use Karnoweb\SmsSender\Exceptions\DriverNotFoundException;
 use Karnoweb\SmsSender\Exceptions\InvalidDriverConfigurationException;
+use Karnoweb\SmsSender\Jobs\SendSmsJob;
+use Karnoweb\SmsSender\Logging\SmsLogger;
 use Karnoweb\SmsSender\Models\Sms;
+use Karnoweb\SmsSender\Response\SmsResponse;
+use Karnoweb\SmsSender\Retry\RetryHandler;
 use Karnoweb\SmsSender\Support\NullUsageHandler;
+use Karnoweb\SmsSender\Validation\SmsValidator;
 
 /**
- * مدیر اصلی ارسال پیامک — Builder / Facade سطح بالا.
+ * Main SMS manager — high-level Builder / Facade.
  */
 class SmsManager
 {
@@ -31,12 +41,33 @@ class SmsManager
     /** @var array<string, string> */
     protected array $inputs = [];
 
+    protected ?string $from = null;
+
+    protected ?string $currentDriver = null;
+
     protected SmsUsageHandler $usageHandler;
+
+    protected SmsLogger $logger;
 
     public function __construct(
         protected readonly Container $container,
     ) {
         $this->usageHandler = $this->resolveUsageHandler();
+        $this->logger       = new SmsLogger();
+    }
+
+    public function from(string $from): static
+    {
+        $this->from = $from;
+
+        return $this;
+    }
+
+    public function driver(string $driver): static
+    {
+        $this->currentDriver = $driver;
+
+        return $this;
     }
 
     public static function instance(): static
@@ -60,7 +91,7 @@ class SmsManager
 
     public function otp(SmsTemplateEnum $template): static
     {
-        $this->templateText = $template->value;
+        $this->templateText = $template->templateText();
         $this->templateName = $template->name;
 
         return $this;
@@ -100,25 +131,98 @@ class SmsManager
     //  SEND
     // ═══════════════════════════════════════════════════════
 
-    public function send(): void
+    public function send(): SmsResponse
     {
         try {
             $targets = $this->resolveTargets();
-
-            if (empty($targets)) {
-                throw new InvalidDriverConfigurationException('No recipients provided.');
-            }
-
             $message = $this->resolveMessage();
 
             if ($message === null) {
                 throw new InvalidDriverConfigurationException('No message or template provided.');
             }
 
-            $this->sendToTargets($targets, $message);
+            $validator = new SmsValidator();
+            $validator->validate($targets, $message);
+
+            if (config('sms.validation.normalize_numbers', true)) {
+                $targets = $validator->normalizeNumbers($targets);
+                $this->toNumbers = $targets;
+            }
+
+            return $this->sendToTargets($targets, $message);
         } finally {
             $this->reset();
         }
+    }
+
+    /**
+     * Send via queue.
+     */
+    public function queue(?string $queueName = null): void
+    {
+        $targets = $this->resolveTargets();
+        $message = $this->resolveMessage();
+
+        if ($message === null) {
+            throw new InvalidDriverConfigurationException('No message or template provided.');
+        }
+
+        $validator = new SmsValidator();
+        $validator->validate($targets, $message);
+
+        if (config('sms.validation.normalize_numbers', true)) {
+            $targets = $validator->normalizeNumbers($targets);
+        }
+
+        $job = new SendSmsJob(
+            recipients: $targets,
+            message: $message,
+            from: $this->from,
+            driver: $this->currentDriver
+        );
+
+        if ($queueName !== null) {
+            $job->onQueue($queueName);
+        } elseif (config('sms.queue.name')) {
+            $job->onQueue((string) config('sms.queue.name'));
+        }
+
+        dispatch($job);
+        $this->reset();
+    }
+
+    /**
+     * Send with delay.
+     */
+    public function later(int $delaySeconds, ?string $queueName = null): void
+    {
+        $targets = $this->resolveTargets();
+        $message = $this->resolveMessage();
+
+        if ($message === null) {
+            throw new InvalidDriverConfigurationException('No message or template provided.');
+        }
+
+        $validator = new SmsValidator();
+        $validator->validate($targets, $message);
+
+        if (config('sms.validation.normalize_numbers', true)) {
+            $targets = $validator->normalizeNumbers($targets);
+        }
+
+        $job = new SendSmsJob(
+            recipients: $targets,
+            message: $message,
+            from: $this->from,
+            driver: $this->currentDriver
+        );
+
+        if ($queueName !== null) {
+            $job->onQueue($queueName);
+        }
+
+        dispatch($job)->delay(now()->addSeconds($delaySeconds));
+        $this->reset();
     }
 
     // ═══════════════════════════════════════════════════════
@@ -274,10 +378,14 @@ class SmsManager
     /** @return array<int, string> */
     protected function getDriverOrder(): array
     {
+        $order = [];
+
+        if ($this->currentDriver !== null && $this->currentDriver !== '') {
+            $order[] = $this->currentDriver;
+        }
+
         $default  = config('sms.default');
         $failover = config('sms.failover', []);
-
-        $order = [];
 
         if (! empty($default)) {
             $order[] = $default;
@@ -302,10 +410,8 @@ class SmsManager
     {
         $driverConfig = config("sms.drivers.{$name}");
 
-        if (! is_array($driverConfig) || empty($driverConfig)) {
-            throw new InvalidDriverConfigurationException(
-                "SMS driver [{$name}] is not defined in config/sms.php.",
-            );
+        if ($driverConfig === null || ! is_array($driverConfig) || empty($driverConfig)) {
+            throw DriverNotFoundException::make($name);
         }
 
         $class = $driverConfig['class'] ?? null;
@@ -345,44 +451,64 @@ class SmsManager
     /**
      * @param array<int, string> $phoneNumbers
      */
-    protected function sendToTargets(array $phoneNumbers, string $message): void
+    protected function sendToTargets(array $phoneNumbers, string $message): SmsResponse
     {
-        $driverOrder   = $this->getDriverOrder();
-        $lastException = null;
+        $driverOrder  = $this->getDriverOrder();
+        $retryHandler = new RetryHandler($this->logger);
+        /** @var array<string, \Throwable> $errors */
+        $errors = [];
 
         foreach ($driverOrder as $driverName) {
+            $sendingEvent = new SmsSending($phoneNumbers, $message, $driverName);
+            event($sendingEvent);
+
+            if ($sendingEvent->cancelled) {
+                continue;
+            }
+
             try {
                 $driver = $this->resolveDriver($driverName);
                 $this->usageHandler->ensureUsable($driverName, $driver);
-                $this->sendWithDriver($driverName, $driver, $phoneNumbers, $message);
 
-                return;
-            } catch (InvalidDriverConfigurationException $e) {
-                $lastException = $e;
-                continue;
-            } catch (DriverConnectionException $e) {
-                $lastException = $e;
-                continue;
-            } catch (DriverNotAvailableException $e) {
-                $lastException = $e;
-                continue;
+                $rawResponse = $retryHandler->execute($driverName, function () use ($driverName, $driver, $phoneNumbers, $message): array {
+                    return $driver->send($phoneNumbers, $message, $this->from);
+                });
+
+                $messageId = $rawResponse['message_id'] ?? null;
+                $this->saveRecordsAndMarkSent($driverName, $phoneNumbers, $message, $messageId);
+
+                $this->logger->success($driverName, $phoneNumbers, $message);
+
+                $response = SmsResponse::success(
+                    driverName: $driverName,
+                    recipients: $phoneNumbers,
+                    messageId: $messageId,
+                    rawResponse: $rawResponse
+                );
+
+                event(new SmsSent($response, $phoneNumbers, $message, $driverName));
+
+                return $response;
+            } catch (\Throwable $e) {
+                $errors[$driverName] = $e;
+                $this->logger->failure($driverName, $phoneNumbers, $e);
             }
         }
 
-        throw new DriverNotAvailableException(
-            message:  'No SMS drivers are available to send messages.',
-            previous: $lastException,
-        );
+        $exception = new AllDriversFailedException($errors);
+        event(new SmsFailed($phoneNumbers, $message, $exception, $errors));
+
+        throw $exception;
     }
 
     /**
      * @param array<int, string> $phoneNumbers
      */
-    protected function sendWithDriver(
+    protected function saveRecordsAndMarkSent(
         string $driverName,
-        SmsDriver $driver,
         array $phoneNumbers,
         string $message,
+        ?string $messageId,
     ): void {
         /** @var class-string<Sms> $modelClass */
         $modelClass = config('sms.model', Sms::class);
@@ -399,11 +525,9 @@ class SmsManager
             ]);
 
             try {
-                $driver->send($phoneNumber, $message);
-                $record->markAsSent();
-            } catch (DriverConnectionException $e) {
+                $record->markAsSent($messageId);
+            } catch (\Throwable $e) {
                 $record->markAsFailed($e->getMessage());
-                throw $e;
             }
         }
     }
@@ -433,10 +557,12 @@ class SmsManager
 
     protected function reset(): void
     {
-        $this->toNumbers    = [];
+        $this->toNumbers     = [];
         $this->messageText  = null;
         $this->templateText = null;
         $this->templateName = null;
         $this->inputs       = [];
+        $this->from         = null;
+        $this->currentDriver = null;
     }
 }
