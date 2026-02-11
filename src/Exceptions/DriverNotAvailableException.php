@@ -2,9 +2,7 @@
 
 namespace Karnoweb\SmsSender\Exceptions;
 
-/**
- * خطای عدم دسترسی به هیچ درایور SMS.
- */
+/** No SMS driver available. */
 class DriverNotAvailableException extends SmsException
 {
 }

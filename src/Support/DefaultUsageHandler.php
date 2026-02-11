@@ -8,8 +8,7 @@ use Karnoweb\SmsSender\Exceptions\DriverNotAvailableException;
 use Karnoweb\SmsSender\Models\Sms;
 
 /**
- * پیاده‌سازی پیش‌فرض کنترل مصرف درایورهای SMS.
- * بررسی: enabled، daily_limit، monthly_limit از config/sms.php
+ * Default usage handler: enabled, daily_limit, monthly_limit from config/sms.php.
  */
 class DefaultUsageHandler implements SmsUsageHandler
 {

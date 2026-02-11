@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Karnoweb\SmsSender\Enums\SmsSendStatusEnum;
 
 /**
- * مدل لاگ پیامک‌های ارسالی.
+ * Model for sent SMS log.
  *
  * @property int $id
  * @property string $driver

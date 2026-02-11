@@ -6,12 +6,11 @@ use Karnoweb\SmsSender\Contracts\SmsDriver;
 use Karnoweb\SmsSender\Contracts\SmsUsageHandler;
 
 /**
- * پیاده‌سازی پیش‌فرض UsageHandler — همیشه اجازه می‌دهد.
+ * Null usage handler — always allows (no limits).
  */
 class NullUsageHandler implements SmsUsageHandler
 {
     public function ensureUsable(string $driverName, SmsDriver $driver): void
     {
-        // عمداً خالی — بدون محدودیت
     }
 }

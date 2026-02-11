@@ -3,17 +3,15 @@
 namespace Karnoweb\SmsSender\Contracts;
 
 /**
- * قرارداد کنترل مصرف و دسترسی درایورهای SMS.
+ * Contract for SMS driver usage/availability control.
  *
- * @throws \Karnoweb\SmsSender\Exceptions\DriverNotAvailableException اگر درایور قابل استفاده نباشد
+ * @throws \Karnoweb\SmsSender\Exceptions\DriverNotAvailableException when driver is not usable
  */
 interface SmsUsageHandler
 {
     /**
-     * بررسی اینکه آیا درایور مشخص‌شده قابل استفاده هست یا خیر.
-     *
-     * @param string    $driverName نام درایور
-     * @param SmsDriver $driver     نمونه‌ی درایور
+     * @param string $driverName
+     * @param SmsDriver $driver
      */
     public function ensureUsable(string $driverName, SmsDriver $driver): void;
 }

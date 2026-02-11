@@ -43,10 +43,10 @@ class SmsSendStatusEnumTest extends TestCase
 
     public function test_specific_labels(): void
     {
-        $this->assertEquals('در انتظار ارسال', SmsSendStatusEnum::PENDING->label());
-        $this->assertEquals('ارسال شده', SmsSendStatusEnum::SENT->label());
-        $this->assertEquals('تحویل داده شده', SmsSendStatusEnum::DELIVERED->label());
-        $this->assertEquals('ناموفق', SmsSendStatusEnum::FAILED->label());
+        $this->assertEquals('Pending', SmsSendStatusEnum::PENDING->label());
+        $this->assertEquals('Sent', SmsSendStatusEnum::SENT->label());
+        $this->assertEquals('Delivered', SmsSendStatusEnum::DELIVERED->label());
+        $this->assertEquals('Failed', SmsSendStatusEnum::FAILED->label());
     }
 
     public function test_terminal_states(): void

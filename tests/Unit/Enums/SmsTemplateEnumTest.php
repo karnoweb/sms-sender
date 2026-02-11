@@ -18,7 +18,7 @@ class SmsTemplateEnumTest extends TestCase
     public function test_all_templates_contain_placeholders(): void
     {
         foreach (SmsTemplateEnum::cases() as $case) {
-            $this->assertMatchesRegularExpression('/\{\w+}/', $case->value);
+            $this->assertMatchesRegularExpression('/\{\w+}/', $case->templateText());
         }
     }
 
@@ -50,7 +50,7 @@ class SmsTemplateEnumTest extends TestCase
 
     public function test_can_create_from_value(): void
     {
-        $template = SmsTemplateEnum::from('کد ورود شما: {code}');
+        $template = SmsTemplateEnum::from('login_otp');
         $this->assertSame(SmsTemplateEnum::LOGIN_OTP, $template);
     }
 

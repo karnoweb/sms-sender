@@ -2,9 +2,7 @@
 
 namespace Karnoweb\SmsSender\Exceptions;
 
-/**
- * خطای پیکربندی نادرست درایور.
- */
+/** Invalid driver configuration. */
 class InvalidDriverConfigurationException extends SmsException
 {
 }

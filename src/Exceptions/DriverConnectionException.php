@@ -2,9 +2,7 @@
 
 namespace Karnoweb\SmsSender\Exceptions;
 
-/**
- * خطای ارتباط با سرویس‌دهنده‌ی پیامک.
- */
+/** Connection error with SMS provider. */
 class DriverConnectionException extends SmsException
 {
 }

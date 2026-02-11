@@ -11,12 +11,7 @@ enum SmsSendStatusEnum: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::PENDING   => 'در انتظار ارسال',
-            self::SENT      => 'ارسال شده',
-            self::DELIVERED => 'تحویل داده شده',
-            self::FAILED    => 'ناموفق',
-        };
+        return (string) __("sms-sender::statuses.{$this->value}");
     }
 
     public function isTerminal(): bool

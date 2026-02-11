@@ -40,7 +40,7 @@ class BuilderTest extends TestCase
     {
         $result = $this->manager->otp(SmsTemplateEnum::LOGIN_OTP);
         $this->assertSame($this->manager, $result);
-        $this->assertEquals(SmsTemplateEnum::LOGIN_OTP->value, $this->getProperty('templateText'));
+        $this->assertEquals(SmsTemplateEnum::LOGIN_OTP->templateText(), $this->getProperty('templateText'));
     }
 
     public function test_otp_sets_template_name(): void

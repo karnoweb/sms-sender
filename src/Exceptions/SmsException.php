@@ -4,9 +4,7 @@ namespace Karnoweb\SmsSender\Exceptions;
 
 use RuntimeException;
 
-/**
- * کلاس پایه‌ی تمام Exception های پکیج SMS.
- */
+/** Base exception for SMS package. */
 class SmsException extends RuntimeException
 {
 }
