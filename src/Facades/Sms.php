@@ -11,6 +11,7 @@ use Karnoweb\SmsSender\Testing\SmsFake;
  * Facade for SmsManager.
  *
  * @method static SmsManager message(string $message)
+ * @method static SmsManager template(string $key, string $body)
  * @method static SmsManager otp(\Karnoweb\SmsSender\Enums\SmsTemplateEnum $template)
  * @method static SmsManager input(string $key, string $value)
  * @method static SmsManager inputs(array $inputs)

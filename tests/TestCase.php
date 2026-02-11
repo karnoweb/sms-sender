@@ -24,6 +24,11 @@ abstract class TestCase extends BaseTestCase
         $app['config']->set('sms.failover', $app['config']->get('sms.failover', []));
         $app['config']->set('sms.model', $app['config']->get('sms.model', \Karnoweb\SmsSender\Models\Sms::class));
         $app['config']->set('sms.table', $app['config']->get('sms.table', 'sms_messages'));
+        $app['config']->set('sms.templates', [
+            'login_otp'      => 'Your login code: {code}',
+            'verify_phone'   => 'Phone verification code: {code}',
+            'password_reset' => 'Password reset code: {code}',
+        ]);
     }
 
     protected function getPackageProviders($app): array

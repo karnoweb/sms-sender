@@ -89,6 +89,22 @@ class SmsManager
         return $this;
     }
 
+    /**
+     * Set template by key and body (injected from application).
+     * Use this instead of package lang so the app controls template content.
+     */
+    public function template(string $key, string $body): static
+    {
+        $this->templateName = $key;
+        $this->templateText = $body;
+
+        return $this;
+    }
+
+    /**
+     * Set OTP template via enum (backward compatibility).
+     * Prefer template($key, $body) with app-provided content.
+     */
     public function otp(SmsTemplateEnum $template): static
     {
         $this->templateText = $template->templateText();

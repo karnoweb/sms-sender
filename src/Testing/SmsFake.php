@@ -22,6 +22,11 @@ class SmsFake
 
     private string $message = '';
 
+    private ?string $templateBody = null;
+
+    /** @var array<string, string> */
+    private array $inputs = [];
+
     public function __construct()
     {
         $this->sentMessages   = collect();
@@ -30,10 +35,11 @@ class SmsFake
 
     public function send(): SmsResponse
     {
+        $message = $this->resolveMessage();
         if ($this->shouldFail) {
             $this->sentMessages->push([
                 'recipients' => $this->recipients,
-                'message'    => $this->message,
+                'message'    => $message,
                 'driver'     => 'fake',
                 'status'     => 'failed',
             ]);
@@ -43,7 +49,7 @@ class SmsFake
 
         $this->sentMessages->push([
             'recipients' => $this->recipients,
-            'message'    => $this->message,
+            'message'    => $message,
             'driver'     => 'fake',
             'status'     => 'sent',
         ]);
@@ -55,11 +61,26 @@ class SmsFake
         );
     }
 
+    private function resolveMessage(): string
+    {
+        if ($this->message !== '') {
+            return $this->message;
+        }
+        if ($this->templateBody !== null) {
+            $text = $this->templateBody;
+            foreach ($this->inputs as $key => $value) {
+                $text = str_replace('{' . $key . '}', (string) $value, $text);
+            }
+            return $text;
+        }
+        return '';
+    }
+
     public function queue(?string $queueName = null): void
     {
         $this->queuedMessages->push([
             'recipients' => $this->recipients,
-            'message'    => $this->message,
+            'message'    => $this->resolveMessage(),
             'queue'      => $queueName,
         ]);
     }
@@ -68,7 +89,7 @@ class SmsFake
     {
         $this->queuedMessages->push([
             'recipients' => $this->recipients,
-            'message'    => $this->message,
+            'message'    => $this->resolveMessage(),
             'queue'      => $queueName,
             'delay'      => $delaySeconds,
         ]);
@@ -154,6 +175,8 @@ class SmsFake
         $this->shouldFail     = false;
         $this->recipients     = [];
         $this->message        = '';
+        $this->templateBody   = null;
+        $this->inputs         = [];
     }
 
     public function numbers(array $numbers): self
@@ -187,18 +210,27 @@ class SmsFake
         return $this;
     }
 
+    public function template(string $key, string $body): self
+    {
+        $this->templateBody = $body;
+        return $this;
+    }
+
     public function otp(\Karnoweb\SmsSender\Enums\SmsTemplateEnum $template): self
     {
+        $this->templateBody = $template->templateText();
         return $this;
     }
 
     public function input(string $key, string $value): self
     {
+        $this->inputs[$key] = $value;
         return $this;
     }
 
     public function inputs(array $inputs): self
     {
+        $this->inputs = array_merge($this->inputs, $inputs);
         return $this;
     }
 

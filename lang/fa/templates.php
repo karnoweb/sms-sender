@@ -1,7 +1,7 @@
 <?php
 
-return [
-    'login_otp'       => 'کد ورود شما: {code}',
-    'verify_phone'    => 'کد تأیید شماره: {code}',
-    'password_reset'  => 'کد بازیابی رمز عبور: {code}',
-];
+/**
+ * Template strings are no longer shipped by the package.
+ * Inject templates from your app via Sms::template($key, $body) or config('sms.templates').
+ */
+return [];

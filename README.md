@@ -56,10 +56,10 @@ Full documentation is available in the [`docs/`](docs/00-index.md) directory.
 
 | # | Topic |
 |---|-------|
-| 01 | [Overview](docs/01-overview.md) |
-| 02 | [Installation](docs/02-installation.md) |
-| 03 | [Configuration](docs/03-configuration.md) |
-| 04 | [Basic Usage](docs/04-basic-usage.md) |
+| 01 | [Overview](docs/fa/01-overview.md) |
+| 02 | [Installation](docs/fa/02-installation.md) |
+| 03 | [Configuration](docs/fa/03-configuration.md) |
+| 04 | [Basic Usage](docs/fa/04-basic-usage.md) |
 
 ## 🧪 Testing
 

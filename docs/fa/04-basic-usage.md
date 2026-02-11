@@ -35,7 +35,20 @@ Sms::message('سفارش شما ثبت شد.')
     ->send();
 ```
 
-## ارسال OTP
+## ارسال با تمپلیت (تزریق از اپ)
+
+متن تمپلیت را از اپ خودتان بدهید:
+
+```php
+Sms::template('login_otp', 'کد ورود شما: {code}')
+    ->input('code', '1234')
+    ->number('09120000000')
+    ->send();
+```
+
+یا از طریق تنظیم `config('sms.templates')` در اپ.
+
+## ارسال OTP با Enum
 
 ```php
 use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
@@ -45,6 +58,8 @@ Sms::otp(SmsTemplateEnum::LOGIN_OTP)
     ->number('09120000000')
     ->send();
 ```
+
+برای کار با Enum، متن تمپلیت را در `config('sms.templates')` یا از طریق انتشار lang پکیج تنظیم کنید.
 
 ## بعدی
 
