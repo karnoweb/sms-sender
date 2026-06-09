@@ -2,7 +2,6 @@
 
 namespace Karnoweb\SmsSender\Testing;
 
-use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
 use Illuminate\Support\Collection;
 use Karnoweb\SmsSender\Response\SmsResponse;
 use PHPUnit\Framework\Assert;
@@ -24,6 +23,10 @@ class SmsFake
 
     private ?string $templateBody = null;
 
+    private ?string $providerTemplate = null;
+
+    private bool $isOtpMode = false;
+
     /** @var array<string, string> */
     private array $inputs = [];
 
@@ -35,9 +38,14 @@ class SmsFake
 
     public function send(): SmsResponse
     {
+        if ($this->isOtpMode) {
+            return $this->sendLookup();
+        }
+
         $message = $this->resolveMessage();
         if ($this->shouldFail) {
             $this->sentMessages->push([
+                'type'       => 'message',
                 'recipients' => $this->recipients,
                 'message'    => $message,
                 'driver'     => 'fake',
@@ -48,6 +56,7 @@ class SmsFake
         }
 
         $this->sentMessages->push([
+            'type'       => 'message',
             'recipients' => $this->recipients,
             'message'    => $message,
             'driver'     => 'fake',
@@ -61,6 +70,31 @@ class SmsFake
         );
     }
 
+    private function sendLookup(): SmsResponse
+    {
+        $payload = [
+            'type'       => 'lookup',
+            'recipients' => $this->recipients,
+            'template'   => $this->providerTemplate,
+            'inputs'     => $this->inputs,
+            'driver'     => 'fake',
+        ];
+
+        if ($this->shouldFail) {
+            $this->sentMessages->push(array_merge($payload, ['status' => 'failed']));
+
+            return SmsResponse::failure('fake', $this->recipients, 'Fake lookup failure for testing');
+        }
+
+        $this->sentMessages->push(array_merge($payload, ['status' => 'sent']));
+
+        return SmsResponse::success(
+            driverName: 'fake',
+            recipients: $this->recipients,
+            messageId: 'fake-lookup-' . uniqid()
+        );
+    }
+
     private function resolveMessage(): string
     {
         if ($this->message !== '') {
@@ -71,28 +105,47 @@ class SmsFake
             foreach ($this->inputs as $key => $value) {
                 $text = str_replace('{' . $key . '}', (string) $value, $text);
             }
+
             return $text;
         }
+
         return '';
     }
 
     public function queue(?string $queueName = null): void
     {
-        $this->queuedMessages->push([
-            'recipients' => $this->recipients,
-            'message'    => $this->resolveMessage(),
-            'queue'      => $queueName,
-        ]);
+        $this->queuedMessages->push($this->buildQueuePayload($queueName));
     }
 
     public function later(int $delaySeconds, ?string $queueName = null): void
     {
-        $this->queuedMessages->push([
+        $this->queuedMessages->push(array_merge(
+            $this->buildQueuePayload($queueName),
+            ['delay' => $delaySeconds],
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildQueuePayload(?string $queueName): array
+    {
+        if ($this->isOtpMode) {
+            return [
+                'type'       => 'lookup',
+                'recipients' => $this->recipients,
+                'template'   => $this->providerTemplate,
+                'inputs'     => $this->inputs,
+                'queue'      => $queueName,
+            ];
+        }
+
+        return [
+            'type'       => 'message',
             'recipients' => $this->recipients,
             'message'    => $this->resolveMessage(),
             'queue'      => $queueName,
-            'delay'      => $delaySeconds,
-        ]);
+        ];
     }
 
     public function shouldFail(bool $fail = true): self
@@ -105,13 +158,37 @@ class SmsFake
     public function assertSent(string $recipient, ?string $message = null): void
     {
         $found = $this->sentMessages->contains(function ($item) use ($recipient, $message) {
+            if (($item['type'] ?? 'message') === 'lookup') {
+                return false;
+            }
+
             $recipientMatch = in_array($recipient, $item['recipients'], true);
-            $messageMatch  = $message !== null ? $item['message'] === $message : true;
+            $messageMatch   = $message !== null ? $item['message'] === $message : true;
 
             return $recipientMatch && $messageMatch;
         });
 
         Assert::assertTrue($found, __('sms-sender::messages.assert_sent', ['recipient' => $recipient]));
+    }
+
+    public function assertLookupSent(string $recipient, string $template, ?array $inputs = null): void
+    {
+        $found = $this->sentMessages->contains(function ($item) use ($recipient, $template, $inputs) {
+            if (($item['type'] ?? null) !== 'lookup') {
+                return false;
+            }
+
+            $recipientMatch = in_array($recipient, $item['recipients'], true);
+            $templateMatch  = ($item['template'] ?? null) === $template;
+            $inputsMatch    = $inputs === null ? true : ($item['inputs'] ?? []) === $inputs;
+
+            return $recipientMatch && $templateMatch && $inputsMatch;
+        });
+
+        Assert::assertTrue(
+            $found,
+            "Expected lookup to [{$recipient}] with template [{$template}] was not sent.",
+        );
     }
 
     public function assertNotSent(string $recipient): void
@@ -170,13 +247,15 @@ class SmsFake
 
     public function reset(): void
     {
-        $this->sentMessages   = collect();
-        $this->queuedMessages = collect();
-        $this->shouldFail     = false;
-        $this->recipients     = [];
-        $this->message        = '';
-        $this->templateBody   = null;
-        $this->inputs         = [];
+        $this->sentMessages     = collect();
+        $this->queuedMessages   = collect();
+        $this->shouldFail       = false;
+        $this->recipients       = [];
+        $this->message          = '';
+        $this->templateBody     = null;
+        $this->providerTemplate = null;
+        $this->isOtpMode        = false;
+        $this->inputs           = [];
     }
 
     public function numbers(array $numbers): self
@@ -213,24 +292,34 @@ class SmsFake
     public function template(string $key, string $body): self
     {
         $this->templateBody = $body;
+
         return $this;
     }
 
-    public function otp(\Karnoweb\SmsSender\Enums\SmsTemplateEnum $template): self
+    public function otp(string $template): self
     {
-        $this->templateBody = $template->templateText();
+        $this->providerTemplate = $template;
+        $this->isOtpMode        = true;
+
         return $this;
+    }
+
+    public function lookup(string $template): self
+    {
+        return $this->otp($template);
     }
 
     public function input(string $key, string $value): self
     {
         $this->inputs[$key] = $value;
+
         return $this;
     }
 
     public function inputs(array $inputs): self
     {
         $this->inputs = array_merge($this->inputs, $inputs);
+
         return $this;
     }
 

@@ -35,13 +35,31 @@ return [
     | Template Injection
     |--------------------------------------------------------------------------
     |
-    | Optional template bodies keyed by name. Used by SmsTemplateEnum when
-    | resolving template text. Prefer injecting templates from your app via
-    | Sms::template($key, $body) or override this in your published config.
+    | Optional template bodies keyed by name. Display-only text for admin/logs
+    | when using otp()/lookup() — the actual SMS is sent via the provider
+    | template (verify/lookup). For plain sends, use Sms::template($key, $body)
+    | or override this in your published config.
     |
     */
 
-    'templates' => [],
+    'templates' => [
+        // Display-only text for admin/logs — NOT used for sending.
+        // 'login_otp' => 'کد ورود شما: {token}. این کد تا ۱۰ دقیقه دیگر منقضی می‌شود.',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Provider Lookup Templates
+    |--------------------------------------------------------------------------
+    |
+    | Map internal app keys to provider template names (e.g. Kavenegar panel).
+    | Used with Sms::otp(config('sms.lookups.login_otp')).
+    |
+    */
+
+    'lookups' => [
+        // 'login_otp' => env('KAVENEGAR_LOOKUP_LOGIN', 'login'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

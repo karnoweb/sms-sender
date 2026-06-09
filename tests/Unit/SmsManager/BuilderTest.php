@@ -2,7 +2,6 @@
 
 namespace Karnoweb\SmsSender\Tests\Unit\SmsManager;
 
-use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
 use Karnoweb\SmsSender\SmsManager;
 use Karnoweb\SmsSender\Tests\TestCase;
 
@@ -36,49 +35,51 @@ class BuilderTest extends TestCase
         $this->assertEquals('دوم', $this->getProperty('messageText'));
     }
 
-    public function test_otp_sets_template_text_from_enum(): void
+    public function test_otp_sets_provider_template(): void
     {
-        $result = $this->manager->otp(SmsTemplateEnum::LOGIN_OTP);
+        $result = $this->manager->otp('login');
         $this->assertSame($this->manager, $result);
-        $this->assertEquals(SmsTemplateEnum::LOGIN_OTP->templateText(), $this->getProperty('templateText'));
+        $this->assertEquals('login', $this->getProperty('providerTemplate'));
+        $this->assertTrue($this->getProperty('isOtpMode'));
     }
 
-    public function test_otp_sets_template_name(): void
+    public function test_lookup_is_alias_for_otp(): void
     {
-        $this->manager->otp(SmsTemplateEnum::LOGIN_OTP);
-        $this->assertEquals('LOGIN_OTP', $this->getProperty('templateName'));
+        $this->manager->lookup('verify');
+        $this->assertEquals('verify', $this->getProperty('providerTemplate'));
+        $this->assertTrue($this->getProperty('isOtpMode'));
     }
 
     public function test_input_adds_single_key_value(): void
     {
-        $result = $this->manager->input('code', '1234');
+        $result = $this->manager->input('token', '1234');
         $this->assertSame($this->manager, $result);
-        $this->assertEquals(['code' => '1234'], $this->getProperty('inputs'));
+        $this->assertEquals(['token' => '1234'], $this->getProperty('inputs'));
     }
 
     public function test_input_can_be_called_multiple_times(): void
     {
-        $this->manager->input('code', '1234')->input('name', 'علی');
-        $this->assertEquals(['code' => '1234', 'name' => 'علی'], $this->getProperty('inputs'));
+        $this->manager->input('token', '1234')->input('token2', 'علی');
+        $this->assertEquals(['token' => '1234', 'token2' => 'علی'], $this->getProperty('inputs'));
     }
 
     public function test_input_overwrites_same_key(): void
     {
-        $this->manager->input('code', '1234')->input('code', '5678');
-        $this->assertEquals(['code' => '5678'], $this->getProperty('inputs'));
+        $this->manager->input('token', '1234')->input('token', '5678');
+        $this->assertEquals(['token' => '5678'], $this->getProperty('inputs'));
     }
 
     public function test_inputs_merges_array(): void
     {
-        $result = $this->manager->inputs(['code' => '1234', 'name' => 'علی']);
+        $result = $this->manager->inputs(['token' => '1234', 'token2' => 'علی']);
         $this->assertSame($this->manager, $result);
-        $this->assertEquals(['code' => '1234', 'name' => 'علی'], $this->getProperty('inputs'));
+        $this->assertEquals(['token' => '1234', 'token2' => 'علی'], $this->getProperty('inputs'));
     }
 
     public function test_inputs_merges_with_existing(): void
     {
-        $this->manager->input('code', '1234')->inputs(['name' => 'علی', 'code' => '5678']);
-        $this->assertEquals(['code' => '5678', 'name' => 'علی'], $this->getProperty('inputs'));
+        $this->manager->input('token', '1234')->inputs(['token2' => 'علی', 'token' => '5678']);
+        $this->assertEquals(['token' => '5678', 'token2' => 'علی'], $this->getProperty('inputs'));
     }
 
     public function test_number_adds_single_phone(): void
@@ -119,8 +120,8 @@ class BuilderTest extends TestCase
     public function test_full_fluent_chain_returns_same_instance(): void
     {
         $result = $this->manager
-            ->otp(SmsTemplateEnum::LOGIN_OTP)
-            ->input('code', '1234')
+            ->otp('login')
+            ->inputs(['token' => '1234'])
             ->number('09120000000');
         $this->assertSame($this->manager, $result);
     }

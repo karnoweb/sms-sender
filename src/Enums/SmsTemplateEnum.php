@@ -9,8 +9,9 @@ enum SmsTemplateEnum: string
     case PASSWORD_RESET = 'password_reset';
 
     /**
-     * Resolve template text: app config first, then package lang (if published).
-     * Apps should inject templates via config('sms.templates') or use SmsManager::template($key, $body).
+     * Resolve display template text: app config first, then package lang (if published).
+     * Used for admin/logs — not for provider lookup sends. Prefer config('sms.templates')
+     * or SmsManager::template($key, $body) for local compile sends.
      */
     public function templateText(): string
     {

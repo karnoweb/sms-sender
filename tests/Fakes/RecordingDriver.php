@@ -2,12 +2,16 @@
 
 namespace Karnoweb\SmsSender\Tests\Fakes;
 
+use Karnoweb\SmsSender\Contracts\LookupCapable;
 use Karnoweb\SmsSender\Contracts\SmsDriver;
 
-class RecordingDriver implements SmsDriver
+class RecordingDriver implements SmsDriver, LookupCapable
 {
     /** @var array<int, array{phone: string, message: string}> */
     public static array $sent = [];
+
+    /** @var array<int, array{phone: string, template: string, inputs: array<string, string>}> */
+    public static array $lookups = [];
 
     /** @var array<string, mixed> */
     public static array $receivedConfig = [];
@@ -20,6 +24,7 @@ class RecordingDriver implements SmsDriver
     public static function reset(): void
     {
         static::$sent           = [];
+        static::$lookups        = [];
         static::$receivedConfig = [];
     }
 
@@ -37,6 +42,25 @@ class RecordingDriver implements SmsDriver
         }
 
         return ['message_id' => 'rec-' . uniqid()];
+    }
+
+    /**
+     * @param array<string, string> $inputs
+     * @return array{message_id: string}
+     */
+    public function lookup(
+        string $receptor,
+        string $template,
+        array $inputs = [],
+        ?string $type = 'sms',
+    ): array {
+        static::$lookups[] = [
+            'phone'    => $receptor,
+            'template' => $template,
+            'inputs'   => $inputs,
+        ];
+
+        return ['message_id' => 'rec-lookup-' . uniqid()];
     }
 
     public static function hasSentTo(string $phone): bool

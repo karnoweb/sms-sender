@@ -25,9 +25,14 @@ abstract class TestCase extends BaseTestCase
         $app['config']->set('sms.model', $app['config']->get('sms.model', \Karnoweb\SmsSender\Models\Sms::class));
         $app['config']->set('sms.table', $app['config']->get('sms.table', 'sms_messages'));
         $app['config']->set('sms.templates', [
-            'login_otp'      => 'Your login code: {code}',
-            'verify_phone'   => 'Phone verification code: {code}',
-            'password_reset' => 'Password reset code: {code}',
+            'login_otp'      => 'Your login code: {token}',
+            'verify_phone'   => 'Phone verification code: {token}',
+            'password_reset' => 'Password reset code: {token}',
+        ]);
+        $app['config']->set('sms.lookups', [
+            'login_otp'      => 'login',
+            'verify_phone'   => 'verify',
+            'password_reset' => 'reset',
         ]);
     }
 

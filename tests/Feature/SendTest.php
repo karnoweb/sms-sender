@@ -4,7 +4,6 @@ namespace Karnoweb\SmsSender\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Karnoweb\SmsSender\Enums\SmsSendStatusEnum;
-use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
 use Karnoweb\SmsSender\Exceptions\InvalidDriverConfigurationException;
 use Karnoweb\SmsSender\Exceptions\InvalidPhoneNumberException;
 use Karnoweb\SmsSender\Facades\Sms;
@@ -75,43 +74,42 @@ class SendTest extends TestCase
         $this->assertDatabaseCount('sms_messages', 1);
     }
 
-    public function test_send_otp_with_template(): void
+    public function test_send_otp_with_lookup(): void
     {
-        Sms::otp(SmsTemplateEnum::LOGIN_OTP)
-            ->input('code', '1234')
+        Sms::otp('login')
+            ->inputs(['token' => '1234'])
             ->number('09120000000')
             ->send();
 
         $this->assertDatabaseHas('sms_messages', [
             'phone'    => '09120000000',
             'message'  => 'Your login code: 1234',
-            'template' => 'LOGIN_OTP',
+            'template' => 'login',
             'status'   => SmsSendStatusEnum::SENT->value,
         ]);
     }
 
     public function test_otp_template_inputs_are_stored(): void
     {
-        Sms::otp(SmsTemplateEnum::LOGIN_OTP)
-            ->input('code', '5678')
+        Sms::otp('login')
+            ->inputs(['token' => '5678'])
             ->number('09120000000')
             ->send();
 
         $record = SmsModel::first();
-        $this->assertEquals(['code' => '5678'], $record->inputs);
+        $this->assertEquals(['token' => '5678'], $record->inputs);
     }
 
-    public function test_message_takes_priority_over_template(): void
+    public function test_otp_cannot_be_combined_with_message(): void
     {
-        Sms::otp(SmsTemplateEnum::LOGIN_OTP)
-            ->input('code', '1234')
+        $this->expectException(InvalidDriverConfigurationException::class);
+        $this->expectExceptionMessage('Cannot combine message() with otp()/lookup()');
+
+        Sms::otp('login')
+            ->inputs(['token' => '1234'])
             ->message('پیام ساده')
             ->number('09120000000')
             ->send();
-
-        $this->assertDatabaseHas('sms_messages', [
-            'message' => 'پیام ساده',
-        ]);
     }
 
     public function test_state_is_reset_after_send(): void

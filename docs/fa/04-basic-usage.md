@@ -35,31 +35,68 @@ Sms::message('سفارش شما ثبت شد.')
     ->send();
 ```
 
-## ارسال با تمپلیت (تزریق از اپ)
+## ارسال با تمپلیت محلی (غیر OTP)
 
-متن تمپلیت را از اپ خودتان بدهید:
+متن تمپلیت را از اپ خودتان بدهید؛ پکیج متن را compile می‌کند و با `sms/send` ارسال می‌کند:
 
 ```php
-Sms::template('login_otp', 'کد ورود شما: {code}')
-    ->input('code', '1234')
+Sms::template('order_shipped', 'سفارش {order_id} ارسال شد.')
+    ->input('order_id', '1234')
     ->number('09120000000')
     ->send();
 ```
 
 یا از طریق تنظیم `config('sms.templates')` در اپ.
 
-## ارسال OTP با Enum
+## OTP / Lookup (تمپلیت پنل provider)
+
+**v2.0:** `otp()` دیگر متن را محلی compile نمی‌کند. اپ فقط **نام template در پنل provider** (مثلاً کاوه‌نگار) و **inputs** را می‌فرستد؛ متن واقعی از پنل provider ساخته می‌شود.
 
 ```php
-use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
-
-Sms::otp(SmsTemplateEnum::LOGIN_OTP)
-    ->input('code', '1234')
+Sms::otp(config('sms.lookups.login_otp', 'login'))
+    ->inputs(['token' => '1234'])
     ->number('09120000000')
     ->send();
 ```
 
-برای کار با Enum، متن تمپلیت را در `config('sms.templates')` یا از طریق انتشار lang پکیج تنظیم کنید.
+`lookup()` معادل `otp()` است:
+
+```php
+Sms::lookup('login')
+    ->inputs(['token' => $code, 'token2' => $name])
+    ->number($mobile)
+    ->send();
+```
+
+### تفاوت روش‌ها
+
+| متد | ارسال واقعی | متن در DB/ادمین |
+|-----|-------------|-----------------|
+| `message()` | متن خام → `sms/send` | همان متن |
+| `template()` | compile محلی → `sms/send` | متن compile‌شده |
+| `otp()` / `lookup()` | provider lookup (مثلاً `verify/lookup.json`) | `config('sms.templates')` فقط برای نمایش |
+
+### Config
+
+```php
+// config/sms.php
+
+'templates' => [
+    // فقط نمایش در پنل ادمین / لاگ — NOT used for sending
+    'login_otp' => 'کد ورود شما: {token}. این کد تا ۱۰ دقیقه دیگر منقضی می‌شود.',
+],
+
+'lookups' => [
+    // کلید اپ => نام template در پنل کاوه‌نگار
+    'login_otp' => env('KAVENEGAR_LOOKUP_LOGIN', 'login'),
+],
+```
+
+### محدودیت‌های OTP
+
+- فقط **یک** گیرنده: `number()` — `numbers()` مجاز نیست
+- ترکیب با `message()` یا `template()` مجاز نیست
+- پارامترها فقط با `inputs()` / `input()` — کلیدها مطابق API provider (`token`, `token2`, `token3`, ...)
 
 ## بعدی
 

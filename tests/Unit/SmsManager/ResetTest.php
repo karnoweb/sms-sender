@@ -2,7 +2,6 @@
 
 namespace Karnoweb\SmsSender\Tests\Unit\SmsManager;
 
-use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
 use Karnoweb\SmsSender\SmsManager;
 use Karnoweb\SmsSender\Tests\TestCase;
 
@@ -32,14 +31,13 @@ class ResetTest extends TestCase
     public function test_reset_clears_all_builder_state(): void
     {
         $this->manager
-            ->otp(SmsTemplateEnum::LOGIN_OTP)
-            ->input('code', '1234')
-            ->number('09120000000')
-            ->numbers(['09130000000']);
+            ->otp('login')
+            ->inputs(['token' => '1234'])
+            ->number('09120000000');
 
         $this->assertNotEmpty($this->getProperty('toNumbers'));
-        $this->assertNotNull($this->getProperty('templateText'));
-        $this->assertNotNull($this->getProperty('templateName'));
+        $this->assertEquals('login', $this->getProperty('providerTemplate'));
+        $this->assertTrue($this->getProperty('isOtpMode'));
         $this->assertNotEmpty($this->getProperty('inputs'));
 
         $this->callReset();
@@ -48,6 +46,8 @@ class ResetTest extends TestCase
         $this->assertNull($this->getProperty('messageText'));
         $this->assertNull($this->getProperty('templateText'));
         $this->assertNull($this->getProperty('templateName'));
+        $this->assertNull($this->getProperty('providerTemplate'));
+        $this->assertFalse($this->getProperty('isOtpMode'));
         $this->assertEmpty($this->getProperty('inputs'));
     }
 

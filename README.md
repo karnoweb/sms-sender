@@ -16,11 +16,12 @@ A fluent SMS manager for Laravel with multi-driver support and automatic failove
 - 📊 **Delivery Reports** — Check message delivery status
 - 🔌 **Extensible** — Add custom drivers with a single interface
 - ⚙️ **Usage Control** — Daily/monthly limits per driver
+- 🔐 **OTP/Lookup** — Provider-template verification (Kavenegar verify/lookup)
 
 ## 🚀 Quick Start
 
 ```bash
-composer require karnoweb/sms-sender
+composer require karnoweb/sms-sender:^2.0
 php artisan vendor:publish --tag=sms-config
 php artisan vendor:publish --tag=sms-migrations
 php artisan migrate
@@ -28,16 +29,15 @@ php artisan migrate
 
 ```php
 use Karnoweb\SmsSender\Facades\Sms;
-use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
 
 // Simple message
 Sms::message('Hello World')
     ->number('09120000000')
     ->send();
 
-// OTP
-Sms::otp(SmsTemplateEnum::LOGIN_OTP)
-    ->input('code', '1234')
+// OTP via provider template (Kavenegar verify/lookup)
+Sms::otp(config('sms.lookups.login_otp', 'login'))
+    ->inputs(['token' => '1234'])
     ->number('09120000000')
     ->send();
 
@@ -60,6 +60,8 @@ Full documentation is available in the [`docs/`](docs/00-index.md) directory.
 | 02 | [Installation](docs/fa/02-installation.md) |
 | 03 | [Configuration](docs/fa/03-configuration.md) |
 | 04 | [Basic Usage](docs/fa/04-basic-usage.md) |
+
+See [CHANGELOG.md](CHANGELOG.md) for v2.0 breaking changes.
 
 ## 🧪 Testing
 

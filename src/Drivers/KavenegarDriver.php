@@ -7,6 +7,7 @@ namespace Karnoweb\SmsSender\Drivers;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Log;
 use Karnoweb\SmsSender\Contracts\DeliveryReportFetcher;
+use Karnoweb\SmsSender\Contracts\LookupCapable;
 use Karnoweb\SmsSender\Contracts\SmsDriver;
 use Karnoweb\SmsSender\Exceptions\DriverConnectionException;
 use Throwable;
@@ -16,7 +17,7 @@ use Throwable;
  *
  * @see https://kavenegar.com/rest.html
  */
-class KavenegarDriver extends AbstractSmsDriver implements SmsDriver, DeliveryReportFetcher
+class KavenegarDriver extends AbstractSmsDriver implements SmsDriver, DeliveryReportFetcher, LookupCapable
 {
     protected Client $client;
 
@@ -142,6 +143,78 @@ class KavenegarDriver extends AbstractSmsDriver implements SmsDriver, DeliveryRe
             Log::error('Kavenegar sendBatch failed', [
                 'recipients' => $phoneNumbers,
                 'exception'  => $e->getMessage(),
+            ]);
+            throw new DriverConnectionException(
+                'Failed to connect to Kavenegar API: ' . $e->getMessage(),
+                previous: $e
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $inputs
+     * @return array{message_id: string, raw?: array}
+     *
+     * @see https://kavenegar.com/rest.html#sms-lookup
+     */
+    public function lookup(
+        string $receptor,
+        string $template,
+        array $inputs = [],
+        ?string $type = 'sms',
+    ): array {
+        if (empty($this->config['token'])) {
+            throw new DriverConnectionException('Kavenegar token not set.');
+        }
+
+        $url = $this->config['token'] . '/verify/lookup.json';
+
+        $formParams = [
+            'receptor' => $receptor,
+            'template' => $template,
+        ];
+
+        if ($type !== null) {
+            $formParams['type'] = $type;
+        }
+
+        $allowedKeys = ['token', 'token2', 'token3', 'token10', 'token20', 'tag'];
+        foreach ($inputs as $key => $value) {
+            if (in_array($key, $allowedKeys, true)) {
+                $formParams[$key] = $value;
+            }
+        }
+
+        try {
+            $response = $this->client->post($url, [
+                'form_params' => $formParams,
+            ]);
+
+            $body = (string) $response->getBody();
+            $data = json_decode($body, true);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new DriverConnectionException(
+                    'Kavenegar API error: ' . $this->parseErrorResponse($data)
+                );
+            }
+
+            if (isset($data['return']['status']) && $data['return']['status'] !== 200) {
+                throw new DriverConnectionException(
+                    'Kavenegar API error: ' . ($data['return']['message'] ?? 'Unknown error')
+                );
+            }
+
+            $messageId = $data['entries'][0]['messageid'] ?? 'kavenegar-lookup-' . uniqid();
+
+            return ['message_id' => (string) $messageId, 'raw' => $data];
+        } catch (DriverConnectionException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            Log::error('Kavenegar lookup failed', [
+                'phone'     => $receptor,
+                'template'  => $template,
+                'exception' => $e->getMessage(),
             ]);
             throw new DriverConnectionException(
                 'Failed to connect to Kavenegar API: ' . $e->getMessage(),

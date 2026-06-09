@@ -22,19 +22,19 @@ class SmsTemplateEnumTest extends TestCase
         }
     }
 
-    public function test_login_otp_has_code_placeholder(): void
+    public function test_login_otp_has_token_placeholder(): void
     {
-        $this->assertContains('code', SmsTemplateEnum::LOGIN_OTP->placeholders());
+        $this->assertContains('token', SmsTemplateEnum::LOGIN_OTP->placeholders());
     }
 
-    public function test_verify_phone_has_code_placeholder(): void
+    public function test_verify_phone_has_token_placeholder(): void
     {
-        $this->assertContains('code', SmsTemplateEnum::VERIFY_PHONE->placeholders());
+        $this->assertContains('token', SmsTemplateEnum::VERIFY_PHONE->placeholders());
     }
 
-    public function test_password_reset_has_code_placeholder(): void
+    public function test_password_reset_has_token_placeholder(): void
     {
-        $this->assertContains('code', SmsTemplateEnum::PASSWORD_RESET->placeholders());
+        $this->assertContains('token', SmsTemplateEnum::PASSWORD_RESET->placeholders());
     }
 
     public function test_placeholders_returns_array_of_strings(): void

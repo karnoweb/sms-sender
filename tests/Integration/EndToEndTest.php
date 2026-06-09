@@ -4,13 +4,10 @@ namespace Karnoweb\SmsSender\Tests\Integration;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Karnoweb\SmsSender\Enums\SmsSendStatusEnum;
-use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
 use Karnoweb\SmsSender\Facades\Sms;
 use Karnoweb\SmsSender\Models\Sms as SmsModel;
 use Karnoweb\SmsSender\SmsManager;
-use Karnoweb\SmsSender\Support\DefaultUsageHandler;
 use Karnoweb\SmsSender\Tests\Fakes\DeliveryReportDriver;
-use Karnoweb\SmsSender\Tests\Fakes\FailingDriver;
 use Karnoweb\SmsSender\Tests\Fakes\RecordingDriver;
 use Karnoweb\SmsSender\Tests\TestCase;
 
@@ -47,16 +44,16 @@ class EndToEndTest extends TestCase
         ]);
         $this->rebuildManager();
 
-        Sms::otp(SmsTemplateEnum::LOGIN_OTP)
-            ->input('code', '9876')
+        Sms::otp('login')
+            ->inputs(['token' => '9876'])
             ->number('09120000000')
             ->send();
 
         $this->assertDatabaseCount('sms_messages', 1);
         $record = SmsModel::first();
         $this->assertEquals('delivery', $record->driver);
-        $this->assertEquals('LOGIN_OTP', $record->template);
-        $this->assertEquals(['code' => '9876'], $record->inputs);
+        $this->assertEquals('login', $record->template);
+        $this->assertEquals(['token' => '9876'], $record->inputs);
         $this->assertEquals('09120000000', $record->phone);
         $this->assertStringContainsString('9876', $record->message);
         $this->assertSame(SmsSendStatusEnum::SENT, $record->status);
@@ -84,8 +81,8 @@ class EndToEndTest extends TestCase
         ]);
         $this->rebuildManager();
 
-        Sms::otp(SmsTemplateEnum::LOGIN_OTP)
-            ->input('code', '1111')
+        Sms::otp('login')
+            ->inputs(['token' => '1111'])
             ->number('09121111111')
             ->send();
 
@@ -93,19 +90,21 @@ class EndToEndTest extends TestCase
             ->number('09122222222')
             ->send();
 
-        Sms::otp(SmsTemplateEnum::VERIFY_PHONE)
-            ->input('code', '3333')
-            ->numbers(['09123333333', '09124444444'])
+        Sms::otp('verify')
+            ->inputs(['token' => '3333'])
+            ->number('09123333333')
             ->send();
 
-        $this->assertDatabaseCount('sms_messages', 4);
+        $this->assertDatabaseCount('sms_messages', 3);
         $this->assertDatabaseHas('sms_messages', [
             'phone'    => '09121111111',
-            'template' => 'LOGIN_OTP',
+            'template' => 'login',
         ]);
         $sms2 = SmsModel::where('phone', '09122222222')->first();
         $this->assertEquals('پیام ساده', $sms2->message);
         $this->assertNull($sms2->template);
+        $this->assertCount(2, RecordingDriver::$lookups);
+        $this->assertCount(1, RecordingDriver::$sent);
     }
 
     public function test_facade_and_instance_and_di_all_work(): void

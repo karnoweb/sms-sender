@@ -4,10 +4,10 @@ namespace Karnoweb\SmsSender;
 
 use Illuminate\Contracts\Container\Container;
 use Karnoweb\SmsSender\Contracts\DeliveryReportFetcher;
+use Karnoweb\SmsSender\Contracts\LookupCapable;
 use Karnoweb\SmsSender\Contracts\SmsDriver;
 use Karnoweb\SmsSender\Contracts\SmsUsageHandler;
 use Karnoweb\SmsSender\Enums\SmsSendStatusEnum;
-use Karnoweb\SmsSender\Enums\SmsTemplateEnum;
 use Karnoweb\SmsSender\Events\SmsFailed;
 use Karnoweb\SmsSender\Events\SmsSent;
 use Karnoweb\SmsSender\Events\SmsSending;
@@ -40,6 +40,10 @@ class SmsManager
 
     /** @var array<string, string> */
     protected array $inputs = [];
+
+    protected ?string $providerTemplate = null;
+
+    protected bool $isOtpMode = false;
 
     protected ?string $from = null;
 
@@ -84,6 +88,12 @@ class SmsManager
 
     public function message(string $message): static
     {
+        if ($this->isOtpMode) {
+            throw new InvalidDriverConfigurationException(
+                'Cannot combine message() with otp()/lookup().',
+            );
+        }
+
         $this->messageText = $message;
 
         return $this;
@@ -95,6 +105,12 @@ class SmsManager
      */
     public function template(string $key, string $body): static
     {
+        if ($this->isOtpMode) {
+            throw new InvalidDriverConfigurationException(
+                'Cannot combine template() with otp()/lookup().',
+            );
+        }
+
         $this->templateName = $key;
         $this->templateText = $body;
 
@@ -102,15 +118,24 @@ class SmsManager
     }
 
     /**
-     * Set OTP template via enum (backward compatibility).
-     * Prefer template($key, $body) with app-provided content.
+     * Send OTP via provider template (Kavenegar verify/lookup, etc.).
+     * $template is the provider template name (e.g. "login"), not local display text.
      */
-    public function otp(SmsTemplateEnum $template): static
+    public function otp(string $template): static
     {
-        $this->templateText = $template->templateText();
-        $this->templateName = $template->name;
+        $this->assertNotMixedWithPlainMessage();
+        $this->providerTemplate = $template;
+        $this->isOtpMode        = true;
 
         return $this;
+    }
+
+    /**
+     * Alias for otp() — same provider-template lookup flow.
+     */
+    public function lookup(string $template): static
+    {
+        return $this->otp($template);
     }
 
     public function input(string $key, string $value): static
@@ -129,6 +154,12 @@ class SmsManager
 
     public function number(string $phone): static
     {
+        if ($this->isOtpMode && ! empty($this->toNumbers)) {
+            throw new InvalidDriverConfigurationException(
+                'OTP/lookup supports exactly one recipient. Use number() once.',
+            );
+        }
+
         $this->toNumbers[] = $phone;
 
         return $this;
@@ -136,6 +167,12 @@ class SmsManager
 
     public function numbers(array $phones): static
     {
+        if ($this->isOtpMode) {
+            throw new InvalidDriverConfigurationException(
+                'OTP/lookup does not support numbers(). Use number() with a single recipient.',
+            );
+        }
+
         foreach ($phones as $phone) {
             $this->toNumbers[] = (string) $phone;
         }
@@ -150,6 +187,10 @@ class SmsManager
     public function send(): SmsResponse
     {
         try {
+            if ($this->isOtpMode) {
+                return $this->sendOtp();
+            }
+
             $targets = $this->resolveTargets();
             $message = $this->resolveMessage();
 
@@ -176,6 +217,12 @@ class SmsManager
      */
     public function queue(?string $queueName = null): void
     {
+        if ($this->isOtpMode) {
+            $this->queueOtp($queueName);
+
+            return;
+        }
+
         $targets = $this->resolveTargets();
         $message = $this->resolveMessage();
 
@@ -194,16 +241,10 @@ class SmsManager
             recipients: $targets,
             message: $message,
             from: $this->from,
-            driver: $this->currentDriver
+            driver: $this->currentDriver,
         );
 
-        if ($queueName !== null) {
-            $job->onQueue($queueName);
-        } elseif (config('sms.queue.name')) {
-            $job->onQueue((string) config('sms.queue.name'));
-        }
-
-        dispatch($job);
+        $this->dispatchJob($job, $queueName);
         $this->reset();
     }
 
@@ -212,6 +253,12 @@ class SmsManager
      */
     public function later(int $delaySeconds, ?string $queueName = null): void
     {
+        if ($this->isOtpMode) {
+            $this->queueOtp($queueName, $delaySeconds);
+
+            return;
+        }
+
         $targets = $this->resolveTargets();
         $message = $this->resolveMessage();
 
@@ -230,15 +277,60 @@ class SmsManager
             recipients: $targets,
             message: $message,
             from: $this->from,
-            driver: $this->currentDriver
+            driver: $this->currentDriver,
         );
 
-        if ($queueName !== null) {
-            $job->onQueue($queueName);
+        $this->dispatchJob($job, $queueName, $delaySeconds);
+        $this->reset();
+    }
+
+    protected function queueOtp(?string $queueName = null, ?int $delaySeconds = null): void
+    {
+        $targets = $this->resolveTargets();
+
+        if ($this->providerTemplate === null || $this->providerTemplate === '') {
+            throw new InvalidDriverConfigurationException('No provider template provided for OTP/lookup.');
         }
 
-        dispatch($job)->delay(now()->addSeconds($delaySeconds));
+        if (count($targets) !== 1) {
+            throw new InvalidDriverConfigurationException(
+                'OTP/lookup supports exactly one recipient.',
+            );
+        }
+
+        $validator = new SmsValidator();
+        $validator->validateRecipients($targets);
+
+        if (config('sms.validation.normalize_numbers', true)) {
+            $targets = $validator->normalizeNumbers($targets);
+        }
+
+        $job = new SendSmsJob(
+            recipients: $targets,
+            from: $this->from,
+            driver: $this->currentDriver,
+            isOtpMode: true,
+            providerTemplate: $this->providerTemplate,
+            inputs: $this->inputs,
+        );
+
+        $this->dispatchJob($job, $queueName, $delaySeconds);
         $this->reset();
+    }
+
+    protected function dispatchJob(SendSmsJob $job, ?string $queueName = null, ?int $delaySeconds = null): void
+    {
+        if ($queueName !== null) {
+            $job->onQueue($queueName);
+        } elseif (config('sms.queue.name')) {
+            $job->onQueue((string) config('sms.queue.name'));
+        }
+
+        if ($delaySeconds !== null) {
+            dispatch($job)->delay(now()->addSeconds($delaySeconds));
+        } else {
+            dispatch($job);
+        }
     }
 
     // ═══════════════════════════════════════════════════════
@@ -387,6 +479,55 @@ class SmsManager
         return str_replace($search, $replace, $template);
     }
 
+    protected function assertNotMixedWithPlainMessage(): void
+    {
+        if ($this->messageText !== null || $this->templateText !== null) {
+            throw new InvalidDriverConfigurationException(
+                'Cannot combine otp()/lookup() with message() or template().',
+            );
+        }
+    }
+
+    protected function compileDisplayTemplate(string $providerTemplate, array $inputs): string
+    {
+        $templateText = $this->resolveDisplayTemplateText($providerTemplate);
+
+        if ($templateText === null || $templateText === '') {
+            return $providerTemplate;
+        }
+
+        return $this->compileTemplate($templateText, $inputs);
+    }
+
+    protected function resolveDisplayTemplateText(string $providerTemplate): ?string
+    {
+        $lookups = config('sms.lookups', []);
+        if (is_array($lookups)) {
+            foreach ($lookups as $key => $name) {
+                if ((string) $name === $providerTemplate) {
+                    $fromConfig = config('sms.templates.' . $key);
+                    if (is_string($fromConfig) && $fromConfig !== '') {
+                        return $fromConfig;
+                    }
+                }
+            }
+        }
+
+        $direct = config('sms.templates.' . $providerTemplate);
+        if (is_string($direct) && $direct !== '') {
+            return $direct;
+        }
+
+        return null;
+    }
+
+    protected function resolveProviderMessageFromRaw(?array $rawResponse): ?string
+    {
+        $message = $rawResponse['raw']['entries'][0]['message'] ?? null;
+
+        return is_string($message) && $message !== '' ? $message : null;
+    }
+
     // ═══════════════════════════════════════════════════════
     //  DRIVER
     // ═══════════════════════════════════════════════════════
@@ -458,6 +599,131 @@ class SmsManager
         }
 
         return $driver;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  SEND OTP / LOOKUP
+    // ═══════════════════════════════════════════════════════
+
+    protected function sendOtp(): SmsResponse
+    {
+        $targets = $this->resolveTargets();
+
+        if ($this->providerTemplate === null || $this->providerTemplate === '') {
+            throw new InvalidDriverConfigurationException('No provider template provided for OTP/lookup.');
+        }
+
+        if (count($targets) !== 1) {
+            throw new InvalidDriverConfigurationException(
+                'OTP/lookup supports exactly one recipient.',
+            );
+        }
+
+        $validator = new SmsValidator();
+        $validator->validateRecipients($targets);
+
+        if (config('sms.validation.normalize_numbers', true)) {
+            $targets = $validator->normalizeNumbers($targets);
+            $this->toNumbers = $targets;
+        }
+
+        return $this->sendOtpToTarget($targets[0]);
+    }
+
+    protected function sendOtpToTarget(string $phoneNumber): SmsResponse
+    {
+        $driverOrder  = $this->getDriverOrder();
+        $retryHandler = new RetryHandler($this->logger);
+        $displayMessage = $this->compileDisplayTemplate($this->providerTemplate, $this->inputs);
+        /** @var array<string, \Throwable> $errors */
+        $errors = [];
+
+        foreach ($driverOrder as $driverName) {
+            $sendingEvent = new SmsSending([$phoneNumber], $displayMessage, $driverName);
+            event($sendingEvent);
+
+            if ($sendingEvent->cancelled) {
+                continue;
+            }
+
+            try {
+                $driver = $this->resolveDriver($driverName);
+
+                if (! $driver instanceof LookupCapable) {
+                    throw new DriverNotAvailableException(
+                        "Driver [{$driverName}] does not support OTP/lookup.",
+                    );
+                }
+
+                $this->usageHandler->ensureUsable($driverName, $driver);
+
+                $rawResponse = $retryHandler->execute($driverName, function () use ($driver, $phoneNumber): array {
+                    return $driver->lookup(
+                        $phoneNumber,
+                        $this->providerTemplate,
+                        $this->inputs,
+                    );
+                });
+
+                $providerMessage = $this->resolveProviderMessageFromRaw($rawResponse);
+                $logMessage      = $providerMessage ?? $displayMessage;
+                $messageId       = $rawResponse['message_id'] ?? null;
+
+                $this->saveOtpRecordAndMarkSent(
+                    $driverName,
+                    $phoneNumber,
+                    $logMessage,
+                    $messageId,
+                );
+
+                $this->logger->success($driverName, [$phoneNumber], $logMessage);
+
+                $response = SmsResponse::success(
+                    driverName: $driverName,
+                    recipients: [$phoneNumber],
+                    messageId: $messageId,
+                    rawResponse: $rawResponse,
+                );
+
+                event(new SmsSent($response, [$phoneNumber], $logMessage, $driverName));
+
+                return $response;
+            } catch (\Throwable $e) {
+                $errors[$driverName] = $e;
+                $this->logger->failure($driverName, [$phoneNumber], $e);
+            }
+        }
+
+        $exception = new AllDriversFailedException($errors);
+        event(new SmsFailed([$phoneNumber], $displayMessage, $exception, $errors));
+
+        throw $exception;
+    }
+
+    protected function saveOtpRecordAndMarkSent(
+        string $driverName,
+        string $phoneNumber,
+        string $displayMessage,
+        ?string $messageId,
+    ): void {
+        /** @var class-string<Sms> $modelClass */
+        $modelClass = config('sms.model', Sms::class);
+
+        /** @var Sms $record */
+        $record = $modelClass::create([
+            'driver'   => $driverName,
+            'template' => $this->providerTemplate,
+            'inputs'   => ! empty($this->inputs) ? $this->inputs : null,
+            'phone'    => $phoneNumber,
+            'message'  => $displayMessage,
+            'status'   => SmsSendStatusEnum::PENDING,
+        ]);
+
+        try {
+            $record->markAsSent($messageId);
+        } catch (\Throwable $e) {
+            $record->markAsFailed($e->getMessage());
+        }
     }
 
     // ═══════════════════════════════════════════════════════
@@ -573,12 +839,14 @@ class SmsManager
 
     protected function reset(): void
     {
-        $this->toNumbers     = [];
-        $this->messageText  = null;
-        $this->templateText = null;
-        $this->templateName = null;
-        $this->inputs       = [];
-        $this->from         = null;
-        $this->currentDriver = null;
+        $this->toNumbers         = [];
+        $this->messageText       = null;
+        $this->templateText      = null;
+        $this->templateName      = null;
+        $this->inputs            = [];
+        $this->providerTemplate  = null;
+        $this->isOtpMode         = false;
+        $this->from              = null;
+        $this->currentDriver     = null;
     }
 }
