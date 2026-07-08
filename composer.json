@@ -17,17 +17,17 @@
         }
     ],
     "require": {
-        "php": "^8.2",
+        "php": "^8.3",
         "guzzlehttp/guzzle": "^7.0",
-        "illuminate/contracts": "^11.0|^12.0",
-        "illuminate/config": "^11.0|^12.0",
-        "illuminate/container": "^11.0|^12.0",
-        "illuminate/database": "^11.0|^12.0",
-        "illuminate/support": "^11.0|^12.0"
+        "illuminate/contracts": "^13.0",
+        "illuminate/config": "^13.0",
+        "illuminate/container": "^13.0",
+        "illuminate/database": "^13.0",
+        "illuminate/support": "^13.0"
     },
     "require-dev": {
-        "orchestra/testbench": "^10.0",
-        "phpunit/phpunit": "^11.0"
+        "orchestra/testbench": "^11.0",
+        "phpunit/phpunit": "^11.0|^12.0"
     },
     "autoload": {
         "psr-4": {
@@ -50,5 +50,5 @@
         "sort-packages": true
     },
     "prefer-stable": true,
-    "version": "2.0.0"
+    "version": "13.0.0"
 }

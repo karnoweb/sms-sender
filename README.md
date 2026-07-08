@@ -2,8 +2,8 @@
 
 A fluent SMS manager for Laravel with multi-driver support and automatic failover.
 
-[![PHP](https://img.shields.io/badge/PHP-8.2%2B-blue)]()
-[![Laravel](https://img.shields.io/badge/Laravel-11.x%20|%2012.x-red)]()
+[![PHP](https://img.shields.io/badge/PHP-8.3%2B-blue)]()
+[![Laravel](https://img.shields.io/badge/Laravel-13.x-red)]()
 [![License](https://img.shields.io/badge/License-MIT-green)]()
 
 ---
@@ -21,7 +21,12 @@ A fluent SMS manager for Laravel with multi-driver support and automatic failove
 ## 🚀 Quick Start
 
 ```bash
+# Laravel 13
+composer require karnoweb/sms-sender:^13.0
+
+# Laravel 11–12
 composer require karnoweb/sms-sender:^2.0
+```
 php artisan vendor:publish --tag=sms-config
 php artisan vendor:publish --tag=sms-migrations
 php artisan migrate
